@@ -17,8 +17,9 @@ func TestMain(t *testing.T) {
 	if err != nil {
 		log.Fatalf("failed to open image: %v", err)
 	}
-	ret := main(src, testBounds, 18, testOutputDir)
+	var ret int
+	ret = main(src, testBounds, 18, testOutputDir)
 	if ret != 24 {
-		t.Errorf("Tiles generated are incorrect, got: %d, want: %d.", ret, 24)
+		t.Errorf("At zomm %d Tiles generated are incorrect, got: %d, want: %d.", 24, ret, 24)
 	}
 }

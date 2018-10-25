@@ -88,52 +88,58 @@ func sliceIt(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int, outputD
 	targetImageSize := getTargetImageSize(imageSource, wgs84Bounds, zoom)
 	targetTilesBounds, targetTileShift := getTargetTilesBounds(wgs84Bounds, zoom)
 
+	resizedImage := imaging.Resize(imageSource, targetImageSize.width, targetImageSize.height, imaging.Lanczos)
 	sX := 0
 	sY := 0
 	for tileX := targetTilesBounds.left; tileX <= targetTilesBounds.right; tileX++ {
 		for tileY := targetTilesBounds.top; tileY <= targetTilesBounds.bottom; tileY++ {
 
 			// for each slice initialize extract and shift
-			var sliceExtract extract
-			var sliceShift shift
-			sliceExtract.width = TILESIZE
-			sliceExtract.height = TILESIZE
+			var sliceExtract image.Rectangle
+			var sliceShift image.Point
+			var width = TILESIZE
+			var height = TILESIZE
+			var top = 0
+			var left = 0
 			// logger.Print(" ")
 			// logger.Print("-----", tileX, tileY, "-------")
 
 			if tileX == targetTilesBounds.left && tileX == targetTilesBounds.right {
 				// logger.Print("premiere et derniere tile de la ligne")
-				sliceExtract.width = targetImageSize.width
-				sliceShift.left = targetTileShift.left
+				width = targetImageSize.width
+				sliceShift.X = targetTileShift.left
 			} else if tileX == targetTilesBounds.left {
 				// logger.Print("premiere tile de la ligne")
-				sliceExtract.width = TILESIZE - targetTileShift.left
-				sliceShift.left = targetTileShift.left
+				width = TILESIZE - targetTileShift.left
+				sliceShift.X = targetTileShift.left
 			} else if tileX == targetTilesBounds.right {
 				// logger.Print("derniere tile de la ligne")
-				sliceExtract.width = targetImageSize.width - sX*TILESIZE + targetTileShift.left
-				sliceExtract.left = sX*TILESIZE - targetTileShift.left
+				width = targetImageSize.width - sX*TILESIZE + targetTileShift.left
+				left = sX*TILESIZE - targetTileShift.left
 			} else {
 				// logger.Print("tile intermediaire de la ligne")
-				sliceExtract.left = sX*TILESIZE - targetTileShift.left - 1
+				left = sX*TILESIZE - targetTileShift.left - 1
 			}
 
 			if tileY == targetTilesBounds.top && tileY == targetTilesBounds.bottom {
 				// logger.Print("premiere et derniere tile de la colonne")
-				sliceExtract.height = targetImageSize.height
-				sliceShift.top = targetTileShift.top
+				height = targetImageSize.height
+				sliceShift.Y = targetTileShift.top
 			} else if tileY == targetTilesBounds.top {
 				// logger.Print("premiere tile de la colonne")
-				sliceExtract.height = TILESIZE - targetTileShift.top
-				sliceShift.top = targetTileShift.top
+				height = TILESIZE - targetTileShift.top
+				sliceShift.Y = targetTileShift.top
 			} else if tileY == targetTilesBounds.bottom {
 				// logger.Print("derniere tile de la colonne")
-				sliceExtract.height = targetImageSize.height - sY*TILESIZE + targetTileShift.top
-				sliceExtract.top = sY*TILESIZE - targetTileShift.top
+				height = targetImageSize.height - sY*TILESIZE + targetTileShift.top
+				top = sY*TILESIZE - targetTileShift.top
 			} else {
 				// logger.Print("tile intermediaire de la colonne")
-				sliceExtract.top = sY*TILESIZE - targetTileShift.top - 1
+				top = sY*TILESIZE - targetTileShift.top - 1
 			}
+
+			sliceExtract.Min = image.Pt(left, top)
+			sliceExtract.Max = image.Pt(left+width, top+height)
 
 			// logger.Print("targetTilesBounds", targetTilesBounds)
 			// logger.Print("sliceExtract", sliceExtract)
@@ -141,7 +147,7 @@ func sliceIt(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int, outputD
 
 			//logger.Print(tileX, tileY, sliceExtract, sliceShift)
 
-			makeTheSlice(imageSource, tileX, tileY, zoom, sliceExtract, sliceShift, outputDir)
+			makeTheSlice(resizedImage, tileX, tileY, zoom, sliceExtract, sliceShift, outputDir)
 
 			sY++
 
@@ -153,21 +159,19 @@ func sliceIt(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int, outputD
 	return nbtiles
 }
 
-func makeTheSlice(imageSource image.Image, tileX int, tileY int, zoom int, sliceExtract extract, sliceShift shift, outputDir string) {
+func makeTheSlice(imageSource image.Image, tileX int, tileY int, zoom int, sliceExtract image.Rectangle, sliceShift image.Point, outputDir string) {
 	// defer TimeTrack(time.Now(), "   makeTheSlice ("+strconv.Itoa(tileX)+"-"+strconv.Itoa(tileY)+")")
 	var path = outputDir + strconv.Itoa(zoom) + "/" + strconv.Itoa(tileX)
 	var file = strconv.Itoa(tileY) + ".jpg"
 	var fulldest = path + "/" + file
 	os.MkdirAll(path, os.ModePerm)
 
-	var rect image.Rectangle
-	rect.Min = image.Pt(sliceExtract.left, sliceExtract.top)
-	rect.Max = image.Pt(sliceExtract.left+sliceExtract.width, sliceExtract.top+sliceExtract.height)
+	//var err = imaging.Save(imageSource, "./testdatas/debug/"+strconv.Itoa(zoom)+"debug.jpg")
 
-	part := imaging.Crop(imageSource, rect)
+	part := imaging.Crop(imageSource, sliceExtract)
 	// todo :check if fulldest exist if yes get it
 	vierge := imaging.New(TILESIZE, TILESIZE, color.NRGBA{128, 128, 128, 255})
-	dst := imaging.Paste(vierge, part, image.Pt(sliceShift.left, sliceShift.top))
+	dst := imaging.Paste(vierge, part, image.Pt(sliceShift.X, sliceShift.Y))
 	var err = imaging.Save(dst, fulldest)
 	if err != nil {
 		log.Fatalf("failed to open image: %v", err)
