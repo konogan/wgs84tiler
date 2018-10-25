@@ -8,8 +8,7 @@ import (
 	"time"
 )
 
-//TimeTrack debug timer
-func TimeTrack(start time.Time, name string) {
+func timeTrack(start time.Time, name string) {
 	elapsed := time.Since(start)
 	log.Printf("%s took %s", name, elapsed)
 }
@@ -19,8 +18,14 @@ var (
 	logger = log.New(&buf, "logger: ", log.Lshortfile)
 )
 
-func main(image image.Image, wgs84Bounds WGS84Bounds, zoom int, outputdir string) int {
-	defer TimeTrack(time.Now(), "tiler")
+//Slice execute the slicing process on the image
+//
+// Examples:
+//
+//	countSlice = wgs84tiler.Slice(image, wgs84Bounds, 18, "./out")
+//
+func Slice(image image.Image, wgs84Bounds WGS84Bounds, zoom int, outputdir string) int {
+	defer timeTrack(time.Now(), "tiler")
 
 	report := sliceIt(image, wgs84Bounds, zoom, outputdir)
 

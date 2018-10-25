@@ -18,7 +18,8 @@ func TestMain(t *testing.T) {
 		log.Fatalf("failed to open image: %v", err)
 	}
 	var ret int
-	ret = main(src, testBounds, 18, testOutputDir)
+
+	ret = Slice(src, testBounds, 18, testOutputDir)
 	if ret != 24 {
 		t.Errorf("At zomm %d Tiles generated are incorrect, got: %d, want: %d.", 24, ret, 24)
 	}
