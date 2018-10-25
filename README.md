@@ -6,8 +6,6 @@ Package `wgs84tiler` provides slicing functions for slippy map (tiled map) gener
 
 It output out/Z/X/Y.png files , where Z is the zoom level, and X and Y identify the tile.
 
-License: MIT.
-
 ## Install / Update
 
     go get -u github.com/konogan/wgs84tiler
