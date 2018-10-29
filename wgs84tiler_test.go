@@ -1,4 +1,4 @@
-package wgs84tiler
+package main
 
 import (
 	"log"
@@ -7,7 +7,7 @@ import (
 	"github.com/disintegration/imaging"
 )
 
-func TestMain(t *testing.T) {
+func TestSlice(t *testing.T) {
 	var testImage = "./testdatas/imagein.jpg"
 	var testBounds = WGS84Bounds{top: 48.8687073004617, right: 2.15657022586739, left: 2.14840505163567,
 		bottom: 48.8651234503015}

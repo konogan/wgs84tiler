@@ -9,6 +9,7 @@ testdatas/debug/
 *.dll
 *.so
 *.dylib
+.vscode/
 
 # Test binary, build with `go test -c`
 *.test

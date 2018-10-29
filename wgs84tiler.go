@@ -1,4 +1,4 @@
-package wgs84tiler
+package main
 
 import (
 	"bytes"
@@ -31,4 +31,8 @@ func Slice(image image.Image, wgs84Bounds WGS84Bounds, zoom int, outputdir strin
 
 	fmt.Print(&buf)
 	return report
+}
+
+func main() {
+
 }

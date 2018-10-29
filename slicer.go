@@ -1,4 +1,4 @@
-package wgs84tiler
+package main
 
 import (
 	"image"
@@ -56,11 +56,13 @@ type extract struct {
 // TILESIZE the slippy tilesize value in pixels
 const TILESIZE = 256
 
+var virgin = imaging.New(TILESIZE, TILESIZE, color.NRGBA{128, 128, 128, 0})
+
 func getTargetImageSize(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int) dimension {
 	// defer timeTrack(time.Now(), "getTargetImageSize")
 	imageSouceBounds := imageSource.Bounds()
-	x1 := Tile2long(Long2tile(wgs84Bounds.left, zoom), zoom)
-	x2 := Tile2long(Long2tile(wgs84Bounds.left, zoom)+1, zoom)
+	x1 := tile2long(long2tile(wgs84Bounds.left, zoom), zoom)
+	x2 := tile2long(long2tile(wgs84Bounds.left, zoom)+1, zoom)
 	lngperpx := (x2 - x1) / float64(TILESIZE)
 	fileSizeInLng := wgs84Bounds.right - wgs84Bounds.left
 	newWidth := math.Ceil(fileSizeInLng / lngperpx)
@@ -73,16 +75,16 @@ func getTargetTilesBounds(wgs84Bounds WGS84Bounds, zoom int) (tilebounds, shift)
 
 	// bounds in tiles
 	var tilebounds tilebounds
-	tilebounds.top = Lat2tile(wgs84Bounds.top, zoom)
-	tilebounds.bottom = Lat2tile(wgs84Bounds.bottom, zoom)
-	tilebounds.left = Long2tile(wgs84Bounds.left, zoom)
-	tilebounds.right = Long2tile(wgs84Bounds.right, zoom)
+	tilebounds.top = lat2tile(wgs84Bounds.top, zoom)
+	tilebounds.bottom = lat2tile(wgs84Bounds.bottom, zoom)
+	tilebounds.left = long2tile(wgs84Bounds.left, zoom)
+	tilebounds.right = long2tile(wgs84Bounds.right, zoom)
 
 	// tiles in coord
-	tileTopLat := Tile2lat(tilebounds.top, zoom)
-	tileTopLatNext := Tile2lat(tilebounds.top+1, zoom)
-	tileLeftLng := Tile2long(tilebounds.left, zoom)
-	tileLeftLngNext := Tile2long(tilebounds.left+1, zoom)
+	tileTopLat := tile2lat(tilebounds.top, zoom)
+	tileTopLatNext := tile2lat(tilebounds.top+1, zoom)
+	tileLeftLng := tile2long(tilebounds.left, zoom)
+	tileLeftLngNext := tile2long(tilebounds.left+1, zoom)
 
 	var tileshift shift
 	tileshift.top = int(((wgs84Bounds.top - tileTopLat) / (tileTopLatNext - tileTopLat)) * float64(TILESIZE))
@@ -108,56 +110,46 @@ func sliceIt(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int, outputD
 			var height = TILESIZE
 			var top = 0
 			var left = 0
-			// logger.Print(" ")
-			// logger.Print("-----", tileX, tileY, "-------")
 
 			if tileX == targetTilesBounds.left && tileX == targetTilesBounds.right {
-				// logger.Print("premiere et derniere tile de la ligne")
+				//premiere et derniere tile de la ligne
 				width = targetImageSize.width
 				sliceShift.X = targetTileShift.left
 			} else if tileX == targetTilesBounds.left {
-				// logger.Print("premiere tile de la ligne")
+				//premiere tile de la ligne
 				width = TILESIZE - targetTileShift.left
 				sliceShift.X = targetTileShift.left
 			} else if tileX == targetTilesBounds.right {
-				// logger.Print("derniere tile de la ligne")
+				//derniere tile de la ligne
 				width = targetImageSize.width - sX*TILESIZE + targetTileShift.left
 				left = sX*TILESIZE - targetTileShift.left
 			} else {
-				// logger.Print("tile intermediaire de la ligne")
+				//tile intermediaire de la ligne
 				left = sX*TILESIZE - targetTileShift.left - 1
 			}
 
 			if tileY == targetTilesBounds.top && tileY == targetTilesBounds.bottom {
-				// logger.Print("premiere et derniere tile de la colonne")
+				//premiere et derniere tile de la colonne
 				height = targetImageSize.height
 				sliceShift.Y = targetTileShift.top
 			} else if tileY == targetTilesBounds.top {
-				// logger.Print("premiere tile de la colonne")
+				//premiere tile de la colonne
 				height = TILESIZE - targetTileShift.top
 				sliceShift.Y = targetTileShift.top
 			} else if tileY == targetTilesBounds.bottom {
-				// logger.Print("derniere tile de la colonne")
+				//derniere tile de la colonne
 				height = targetImageSize.height - sY*TILESIZE + targetTileShift.top
 				top = sY*TILESIZE - targetTileShift.top
 			} else {
-				// logger.Print("tile intermediaire de la colonne")
+				//tile intermediaire de la colonne
 				top = sY*TILESIZE - targetTileShift.top - 1
 			}
 
 			sliceExtract.Min = image.Pt(left, top)
 			sliceExtract.Max = image.Pt(left+width, top+height)
 
-			// logger.Print("targetTilesBounds", targetTilesBounds)
-			// logger.Print("sliceExtract", sliceExtract)
-			// logger.Print("sliceShift", sliceShift)
-
-			//logger.Print(tileX, tileY, sliceExtract, sliceShift)
-
-			makeTheSlice(resizedImage, tileX, tileY, zoom, sliceExtract, sliceShift, outputDir)
-
+			makeTheSlice(resizedImage, Tile{tileX, tileY}, zoom, sliceExtract, sliceShift, outputDir)
 			sY++
-
 		}
 		sX++
 		sY = 0
@@ -166,22 +158,21 @@ func sliceIt(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int, outputD
 	return nbtiles
 }
 
-func makeTheSlice(imageSource image.Image, tileX int, tileY int, zoom int, sliceExtract image.Rectangle, sliceShift image.Point, outputDir string) {
-	// defer timeTrack(time.Now(), "   makeTheSlice ("+strconv.Itoa(tileX)+"-"+strconv.Itoa(tileY)+")")
-	var path = outputDir + strconv.Itoa(zoom) + "/" + strconv.Itoa(tileX)
-	var file = strconv.Itoa(tileY) + ".png"
+func makeTheSlice(imageSource image.Image, tile Tile, zoom int, sliceExtract image.Rectangle, sliceShift image.Point, outputDir string) {
+	var path = outputDir + strconv.Itoa(zoom) + "/" + strconv.Itoa(tile.y)
+	var file = strconv.Itoa(tile.y) + ".png"
 	var fulldest = path + "/" + file
 	os.MkdirAll(path, os.ModePerm)
-
-	//var err = imaging.Save(imageSource, "./testdatas/debug/"+strconv.Itoa(zoom)+"debug.jpg")
-
 	part := imaging.Crop(imageSource, sliceExtract)
-	// todo :check if fulldest exist if yes get it
-	vierge := imaging.New(TILESIZE, TILESIZE, color.NRGBA{128, 128, 128, 0})
-	dst := imaging.Paste(vierge, part, image.Pt(sliceShift.X, sliceShift.Y))
-	var err = imaging.Save(dst, fulldest)
+
+	originalContent, err := imaging.Open(fulldest)
 	if err != nil {
-		log.Fatalf("failed to open image: %v", err)
+		originalContent = virgin
 	}
-	//logger.Printf("tile %d/%d %+v %+v", x, y, sliceExtract, sliceShift)
+	dst := imaging.Paste(originalContent, part, image.Pt(sliceShift.X, sliceShift.Y))
+
+	err = imaging.Save(dst, fulldest)
+	if err != nil {
+		log.Fatalf("failed to save image: %v", err)
+	}
 }

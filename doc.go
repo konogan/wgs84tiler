@@ -1,3 +1,5 @@
+package main
+
 /*
 Package `wgs84tiler` provides slicing functions for slippy map (tiled map) generation.
 
@@ -32,4 +34,3 @@ Example:
 
 
 */
-package wgs84tiler
