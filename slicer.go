@@ -147,8 +147,7 @@ func sliceIt(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int, outputD
 
 			sliceExtract.Min = image.Pt(left, top)
 			sliceExtract.Max = image.Pt(left+width, top+height)
-
-			makeTheSlice(resizedImage, Tile{tileX, tileY}, zoom, sliceExtract, sliceShift, outputDir)
+			makeTheSlice(resizedImage, Tile{x: tileX, y: tileY}, zoom, sliceExtract, sliceShift, outputDir)
 			sY++
 		}
 		sX++
@@ -159,18 +158,16 @@ func sliceIt(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int, outputD
 }
 
 func makeTheSlice(imageSource image.Image, tile Tile, zoom int, sliceExtract image.Rectangle, sliceShift image.Point, outputDir string) {
-	var path = outputDir + strconv.Itoa(zoom) + "/" + strconv.Itoa(tile.y)
+	var path = outputDir + strconv.Itoa(zoom) + "/" + strconv.Itoa(tile.x)
 	var file = strconv.Itoa(tile.y) + ".png"
 	var fulldest = path + "/" + file
 	os.MkdirAll(path, os.ModePerm)
 	part := imaging.Crop(imageSource, sliceExtract)
-
 	originalContent, err := imaging.Open(fulldest)
 	if err != nil {
 		originalContent = virgin
 	}
 	dst := imaging.Paste(originalContent, part, image.Pt(sliceShift.X, sliceShift.Y))
-
 	err = imaging.Save(dst, fulldest)
 	if err != nil {
 		log.Fatalf("failed to save image: %v", err)
