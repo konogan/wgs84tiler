@@ -2,6 +2,7 @@ in/
 out/
 testdatas/out/
 testdatas/debug/
+testdatas/app/
 
 # Binaries for programs and plugins
 *.exe
