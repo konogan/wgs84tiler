@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/disintegration/imaging"
 )
@@ -16,14 +17,10 @@ import (
 // Example :
 // myBounds = WGS84Bounds{top: 48.8687073004617, right: 2.15657022586739, left: 2.14840505163567,bottom: 48.8651234503015}
 type WGS84Bounds struct {
-	// top holds the top coordinate in WGS84 latitude
-	top float64
-	// holds the right coordinate in WGS84 longitude
-	right float64
-	// left  holds the coordinate in WGS84 longitude
-	left float64
-	// bottom  holds the coordinate in WGS84 latitude
-	bottom float64
+	top    float64 // top holds the top coordinate in WGS84 latitude
+	right  float64 // holds the right coordinate in WGS84 longitude
+	left   float64 // left  holds the coordinate in WGS84 longitude
+	bottom float64 // bottom  holds the coordinate in WGS84 latitude
 }
 
 type dimension struct {
@@ -93,9 +90,13 @@ func getTargetTilesBounds(wgs84Bounds WGS84Bounds, zoom int) (tilebounds, shift)
 	return tilebounds, tileshift
 }
 
-func sliceIt(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int, outputDir string) int {
+func sliceIt(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int, outputDir string) (int, int, int, time.Duration) {
+	start := time.Now()
 	targetImageSize := getTargetImageSize(imageSource, wgs84Bounds, zoom)
 	targetTilesBounds, targetTileShift := getTargetTilesBounds(wgs84Bounds, zoom)
+
+	statNew := 0
+	statMerge := 0
 
 	resizedImage := imaging.Resize(imageSource, targetImageSize.width, targetImageSize.height, imaging.Lanczos)
 	sX := 0
@@ -147,24 +148,33 @@ func sliceIt(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int, outputD
 
 			sliceExtract.Min = image.Pt(left, top)
 			sliceExtract.Max = image.Pt(left+width, top+height)
-			makeTheSlice(resizedImage, Tile{x: tileX, y: tileY}, zoom, sliceExtract, sliceShift, outputDir)
+			isNew := makeTheSlice(resizedImage, Tile{x: tileX, y: tileY}, zoom, sliceExtract, sliceShift, outputDir)
+			if isNew {
+				statNew++
+			} else {
+				statMerge++
+			}
+
 			sY++
 		}
 		sX++
 		sY = 0
 	}
-	nbtiles := (targetTilesBounds.right - targetTilesBounds.left) * (targetTilesBounds.bottom - targetTilesBounds.top)
-	return nbtiles
+	nbtiles := statMerge + statNew
+	elapsed := time.Since(start)
+	return nbtiles, statNew, statMerge, elapsed
 }
 
-func makeTheSlice(imageSource image.Image, tile Tile, zoom int, sliceExtract image.Rectangle, sliceShift image.Point, outputDir string) {
+func makeTheSlice(imageSource image.Image, tile Tile, zoom int, sliceExtract image.Rectangle, sliceShift image.Point, outputDir string) bool {
 	var path = outputDir + strconv.Itoa(zoom) + "/" + strconv.Itoa(tile.x)
 	var file = strconv.Itoa(tile.y) + ".png"
 	var fulldest = path + "/" + file
 	os.MkdirAll(path, os.ModePerm)
 	part := imaging.Crop(imageSource, sliceExtract)
+	isNew := false
 	originalContent, err := imaging.Open(fulldest)
 	if err != nil {
+		isNew = true
 		originalContent = virgin
 	}
 	dst := imaging.Paste(originalContent, part, image.Pt(sliceShift.X, sliceShift.Y))
@@ -172,4 +182,5 @@ func makeTheSlice(imageSource image.Image, tile Tile, zoom int, sliceExtract ima
 	if err != nil {
 		log.Fatalf("failed to save image: %v", err)
 	}
+	return isNew
 }

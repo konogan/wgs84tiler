@@ -1,38 +1,51 @@
 package main
 
 import (
-	"bytes"
-	"fmt"
-	"image"
+	"flag"
 	"log"
-	"time"
+	"os"
+	"path/filepath"
+
+	"github.com/disintegration/imaging"
 )
-
-func timeTrack(start time.Time, name string) {
-	elapsed := time.Since(start)
-	log.Printf("%s took %s", name, elapsed)
-}
-
-var (
-	buf    bytes.Buffer
-	logger = log.New(&buf, "logger: ", log.Lshortfile)
-)
-
-//Slice execute the slicing process on the image
-//
-// Examples:
-//
-//	countSlice = wgs84tiler.Slice(image, wgs84Bounds, 18, "./out")
-//
-func Slice(image image.Image, wgs84Bounds WGS84Bounds, zoom int, outputdir string) int {
-	defer timeTrack(time.Now(), "tiler")
-
-	report := sliceIt(image, wgs84Bounds, zoom, outputdir)
-
-	fmt.Print(&buf)
-	return report
-}
 
 func main() {
+
+	var file string
+	var top float64
+	var bottom float64
+	var left float64
+	var right float64
+	var zoom int
+	var out string
+
+	flag.StringVar(&file, "f", "", "File to slice. (Required)")
+	flag.Float64Var(&top, "top", 0, "Top, WGS84 latitude. (Required)")
+	flag.Float64Var(&bottom, "bottom", 0, "Bottom, WGS84 latitude. (Required)")
+	flag.Float64Var(&left, "left", 0, "Left, WGS84 longitude. (Required)")
+	flag.Float64Var(&right, "right", 0, "Right, WGS84 longitude. (Required)")
+	flag.IntVar(&zoom, "zoom", 15, "Right, WGS84 longitude. (Optional default is 15)")
+	flag.StringVar(&out, "out", "", "Directory for output. (Optional default is Dir from file param )")
+	flag.Parse()
+
+	if file == "" || top == 0 || bottom == 0 || left == 0 || right == 0 {
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
+	if out == "" {
+		out = filepath.Dir(file) + "/"
+	}
+
+	var bounds = WGS84Bounds{top, right, left, bottom}
+
+	src, err := imaging.Open(file)
+	if err != nil {
+		log.Fatalf("failed to open image: %v", err)
+	}
+
+	nbSlices, news, merge, time := sliceIt(src, bounds, zoom, out)
+
+	log.Printf("%s file generate %d tiles (%d n,%d m) at this %d zoom level in %s", file, nbSlices, news, merge, zoom, time)
 
 }
