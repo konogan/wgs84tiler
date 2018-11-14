@@ -1,9 +1,9 @@
 package wgs84tiler
 
 import (
+	"fmt"
 	"image"
 	"image/color"
-	"log"
 	"math"
 	"os"
 	"strconv"
@@ -56,7 +56,6 @@ const TILESIZE = 256
 var virgin = imaging.New(TILESIZE, TILESIZE, color.NRGBA{128, 128, 128, 0})
 
 func getTargetImageSize(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int) dimension {
-	// defer timeTrack(time.Now(), "getTargetImageSize")
 	imageSouceBounds := imageSource.Bounds()
 	x1 := tile2long(long2tile(wgs84Bounds.Left, zoom), zoom)
 	x2 := tile2long(long2tile(wgs84Bounds.Left, zoom)+1, zoom)
@@ -68,8 +67,6 @@ func getTargetImageSize(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom i
 }
 
 func getTargetTilesBounds(wgs84Bounds WGS84Bounds, zoom int) (tilebounds, shift) {
-	// defer timeTrack(time.Now(), "getTargetTilesBounds")
-
 	// bounds in tiles
 	var tilebounds tilebounds
 	tilebounds.top = lat2tile(wgs84Bounds.Top, zoom)
@@ -126,7 +123,7 @@ func SliceIt(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int, outputD
 				width = targetImageSize.width - sX*TILESIZE + targetTileShift.left
 				left = sX*TILESIZE - targetTileShift.left
 			} else {
-				//tile intermediaire of the row
+				//middle tile of the row
 				left = sX*TILESIZE - targetTileShift.left - 1
 			}
 
@@ -143,13 +140,19 @@ func SliceIt(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int, outputD
 				height = targetImageSize.height - sY*TILESIZE + targetTileShift.top
 				top = sY*TILESIZE - targetTileShift.top
 			} else {
-				//tile intermediaire of the column
+				//middle tile of the column
 				top = sY*TILESIZE - targetTileShift.top - 1
 			}
 
 			sliceExtract.Min = image.Pt(left, top)
 			sliceExtract.Max = image.Pt(left+width, top+height)
-			isNew := makeTheSlice(resizedImage, Tile{x: tileX, y: tileY}, zoom, sliceExtract, sliceShift, outputDir)
+			tile := Tile{x: tileX, y: tileY}
+			isNew, err := makeTheSlice(resizedImage, tile, zoom, sliceExtract, sliceShift, outputDir)
+
+			if err != nil {
+				fmt.Printf("error whene slicing tile %v", tile)
+			}
+
 			if isNew {
 				statNew++
 			} else {
@@ -166,13 +169,17 @@ func SliceIt(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int, outputD
 	return nbtiles, statNew, statMerge, elapsed
 }
 
-func makeTheSlice(imageSource image.Image, tile Tile, zoom int, sliceExtract image.Rectangle, sliceShift image.Point, outputDir string) bool {
+func makeTheSlice(imageSource image.Image, tile Tile, zoom int, sliceExtract image.Rectangle, sliceShift image.Point, outputDir string) (isNew bool, err error) {
 	var path = outputDir + strconv.Itoa(zoom) + "/" + strconv.Itoa(tile.x)
 	var file = strconv.Itoa(tile.y) + ".png"
 	var fulldest = path + "/" + file
+	isNew = false
 	os.MkdirAll(path, os.ModePerm)
+	if err != nil {
+		return isNew, err
+	}
 	part := imaging.Crop(imageSource, sliceExtract)
-	isNew := false
+
 	originalContent, err := imaging.Open(fulldest)
 	if err != nil {
 		isNew = true
@@ -180,8 +187,5 @@ func makeTheSlice(imageSource image.Image, tile Tile, zoom int, sliceExtract ima
 	}
 	dst := imaging.Paste(originalContent, part, image.Pt(sliceShift.X, sliceShift.Y))
 	err = imaging.Save(dst, fulldest)
-	if err != nil {
-		log.Fatalf("failed to save image: %v", err)
-	}
-	return isNew
+	return isNew, err
 }

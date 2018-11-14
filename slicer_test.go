@@ -14,6 +14,7 @@ var file2 = "./testdatas/imagein2.jpg"
 var out = filepath.Dir(file1) + "/out/"
 var zoom = 15
 var bounds = WGS84Bounds{Top: 48.8687073004617, Right: 2.15657022586739, Left: 2.14840505163567, Bottom: 48.8651234503015}
+var bounds2 = WGS84Bounds{Top: 48.8687073004617, Right: 2.1647354001, Left: 2.15657022586739, Bottom: 48.8651234503015}
 
 func TestSlicing(t *testing.T) {
 	os.RemoveAll("./testdatas/out/")
@@ -56,6 +57,26 @@ func TestMergeSlicing(t *testing.T) {
 
 	if m != 2 {
 		t.Errorf("Expected  2 MERGED tiles   but %v was generated", m)
+	}
+
+}
+
+func TestJuxtaposeSlicing(t *testing.T) {
+	os.RemoveAll("./testdatas/out/")
+	os.MkdirAll("./testdatas/out/", 0777)
+
+	src, _ := imaging.Open(file1)
+	src2, _ := imaging.Open(file2)
+
+	_, _, _, _ = SliceIt(src, bounds, zoom, out)    // first call for making tiles
+	_, n, m, _ := SliceIt(src2, bounds2, zoom, out) // second call for testin merge
+
+	if n != 1 {
+		t.Errorf("Expected  1 NEW tiles   but %v was generated", n)
+	}
+
+	if m != 1 {
+		t.Errorf("Expected  1 MERGED tiles   but %v was generated", m)
 	}
 
 }
