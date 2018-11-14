@@ -1,4 +1,4 @@
-package main
+package wgs84tiler
 
 import (
 	"image"
@@ -17,10 +17,10 @@ import (
 // Example :
 // myBounds = WGS84Bounds{top: 48.8687073004617, right: 2.15657022586739, left: 2.14840505163567,bottom: 48.8651234503015}
 type WGS84Bounds struct {
-	top    float64 // top holds the top coordinate in WGS84 latitude
-	right  float64 // holds the right coordinate in WGS84 longitude
-	left   float64 // left  holds the coordinate in WGS84 longitude
-	bottom float64 // bottom  holds the coordinate in WGS84 latitude
+	Top    float64 // top holds the top coordinate in WGS84 latitude
+	Right  float64 // holds the right coordinate in WGS84 longitude
+	Left   float64 // left  holds the coordinate in WGS84 longitude
+	Bottom float64 // bottom  holds the coordinate in WGS84 latitude
 }
 
 type dimension struct {
@@ -58,10 +58,10 @@ var virgin = imaging.New(TILESIZE, TILESIZE, color.NRGBA{128, 128, 128, 0})
 func getTargetImageSize(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int) dimension {
 	// defer timeTrack(time.Now(), "getTargetImageSize")
 	imageSouceBounds := imageSource.Bounds()
-	x1 := tile2long(long2tile(wgs84Bounds.left, zoom), zoom)
-	x2 := tile2long(long2tile(wgs84Bounds.left, zoom)+1, zoom)
+	x1 := tile2long(long2tile(wgs84Bounds.Left, zoom), zoom)
+	x2 := tile2long(long2tile(wgs84Bounds.Left, zoom)+1, zoom)
 	lngperpx := (x2 - x1) / float64(TILESIZE)
-	fileSizeInLng := wgs84Bounds.right - wgs84Bounds.left
+	fileSizeInLng := wgs84Bounds.Right - wgs84Bounds.Left
 	newWidth := math.Ceil(fileSizeInLng / lngperpx)
 	newHeight := math.Ceil(newWidth * float64(imageSouceBounds.Max.Y) / float64(imageSouceBounds.Max.X))
 	return dimension{width: int(newWidth), height: int(newHeight)}
@@ -72,10 +72,10 @@ func getTargetTilesBounds(wgs84Bounds WGS84Bounds, zoom int) (tilebounds, shift)
 
 	// bounds in tiles
 	var tilebounds tilebounds
-	tilebounds.top = lat2tile(wgs84Bounds.top, zoom)
-	tilebounds.bottom = lat2tile(wgs84Bounds.bottom, zoom)
-	tilebounds.left = long2tile(wgs84Bounds.left, zoom)
-	tilebounds.right = long2tile(wgs84Bounds.right, zoom)
+	tilebounds.top = lat2tile(wgs84Bounds.Top, zoom)
+	tilebounds.bottom = lat2tile(wgs84Bounds.Bottom, zoom)
+	tilebounds.left = long2tile(wgs84Bounds.Left, zoom)
+	tilebounds.right = long2tile(wgs84Bounds.Right, zoom)
 
 	// tiles in coord
 	tileTopLat := tile2lat(tilebounds.top, zoom)
@@ -84,19 +84,20 @@ func getTargetTilesBounds(wgs84Bounds WGS84Bounds, zoom int) (tilebounds, shift)
 	tileLeftLngNext := tile2long(tilebounds.left+1, zoom)
 
 	var tileshift shift
-	tileshift.top = int(((wgs84Bounds.top - tileTopLat) / (tileTopLatNext - tileTopLat)) * float64(TILESIZE))
-	tileshift.left = int(((wgs84Bounds.left - tileLeftLng) / (tileLeftLngNext - tileLeftLng)) * float64(TILESIZE))
+	tileshift.top = int(((wgs84Bounds.Top - tileTopLat) / (tileTopLatNext - tileTopLat)) * float64(TILESIZE))
+	tileshift.left = int(((wgs84Bounds.Left - tileLeftLng) / (tileLeftLngNext - tileLeftLng)) * float64(TILESIZE))
 
 	return tilebounds, tileshift
 }
 
-func sliceIt(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int, outputDir string) (int, int, int, time.Duration) {
+// SliceIt : analyse image and command the slicing
+func SliceIt(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int, outputDir string) (nbtiles, statNew, statMerge int, tps time.Duration) {
 	start := time.Now()
 	targetImageSize := getTargetImageSize(imageSource, wgs84Bounds, zoom)
 	targetTilesBounds, targetTileShift := getTargetTilesBounds(wgs84Bounds, zoom)
 
-	statNew := 0
-	statMerge := 0
+	statNew = 0
+	statMerge = 0
 
 	resizedImage := imaging.Resize(imageSource, targetImageSize.width, targetImageSize.height, imaging.Lanczos)
 	sX := 0
@@ -113,36 +114,36 @@ func sliceIt(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int, outputD
 			var left = 0
 
 			if tileX == targetTilesBounds.left && tileX == targetTilesBounds.right {
-				//premiere et derniere tile de la ligne
+				//first and last tile of the row
 				width = targetImageSize.width
 				sliceShift.X = targetTileShift.left
 			} else if tileX == targetTilesBounds.left {
-				//premiere tile de la ligne
+				//first tile of the row
 				width = TILESIZE - targetTileShift.left
 				sliceShift.X = targetTileShift.left
 			} else if tileX == targetTilesBounds.right {
-				//derniere tile de la ligne
+				//last tile of the row
 				width = targetImageSize.width - sX*TILESIZE + targetTileShift.left
 				left = sX*TILESIZE - targetTileShift.left
 			} else {
-				//tile intermediaire de la ligne
+				//tile intermediaire of the row
 				left = sX*TILESIZE - targetTileShift.left - 1
 			}
 
 			if tileY == targetTilesBounds.top && tileY == targetTilesBounds.bottom {
-				//premiere et derniere tile de la colonne
+				//first and last tile of the column
 				height = targetImageSize.height
 				sliceShift.Y = targetTileShift.top
 			} else if tileY == targetTilesBounds.top {
-				//premiere tile de la colonne
+				//first tile of the column
 				height = TILESIZE - targetTileShift.top
 				sliceShift.Y = targetTileShift.top
 			} else if tileY == targetTilesBounds.bottom {
-				//derniere tile de la colonne
+				//last tile of the column
 				height = targetImageSize.height - sY*TILESIZE + targetTileShift.top
 				top = sY*TILESIZE - targetTileShift.top
 			} else {
-				//tile intermediaire de la colonne
+				//tile intermediaire of the column
 				top = sY*TILESIZE - targetTileShift.top - 1
 			}
 
@@ -160,7 +161,7 @@ func sliceIt(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int, outputD
 		sX++
 		sY = 0
 	}
-	nbtiles := statMerge + statNew
+	nbtiles = statMerge + statNew
 	elapsed := time.Since(start)
 	return nbtiles, statNew, statMerge, elapsed
 }

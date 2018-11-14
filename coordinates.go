@@ -1,4 +1,4 @@
-package main
+package wgs84tiler
 
 import "math"
 
