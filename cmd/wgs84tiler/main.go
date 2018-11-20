@@ -7,9 +7,18 @@ import (
 	"path/filepath"
 
 	"github.com/disintegration/imaging"
-	wg "github.com/konogan/wgs84tiler"
+	wgs "github.com/konogan/wgs84tiler"
 )
 
+// command line version of wgs84tiler
+// take parameters :
+// -f the file to slice
+// -zoom the zoom level from 12 to 21
+// -out the folder for output (optionnal, default is dir from input)
+// -top : WGS84 top latitude
+// -bottom : WGS84 bottom latitude
+// -left : WGS84 left longitude
+// -right : WGS84 right longitude
 func main() {
 
 	var file string
@@ -39,15 +48,15 @@ func main() {
 		out = filepath.Dir(file) + "/"
 	}
 
-	var bounds = wg.WGS84Bounds{Top: top, Right: right, Left: left, Bottom: bottom}
+	var bounds = wgs.WGS84Bounds{Top: top, Right: right, Left: left, Bottom: bottom}
 
 	src, err := imaging.Open(file)
 	if err != nil {
 		log.Fatalf("failed to open image: %v", err)
 	}
 
-	nbSlices, news, merge, time := wg.SliceIt(src, bounds, zoom, out)
+	nbSlices, time := wgs.SliceIt(src, bounds, zoom, out)
 
-	log.Printf("%s file generate %d tiles (%d n,%d m) at this %d zoom level in %s", file, nbSlices, news, merge, zoom, time)
+	log.Printf("%s file generate %d tiles at this %d zoom level in %s", file, nbSlices, zoom, time)
 
 }

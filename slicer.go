@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/disintegration/imaging"
@@ -88,17 +89,20 @@ func getTargetTilesBounds(wgs84Bounds WGS84Bounds, zoom int) (tilebounds, shift)
 }
 
 // SliceIt : analyse image and command the slicing
-func SliceIt(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int, outputDir string) (nbtiles, statNew, statMerge int, tps time.Duration) {
+func SliceIt(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int, outputDir string) (nbtiles int, tps time.Duration) {
 	start := time.Now()
 	targetImageSize := getTargetImageSize(imageSource, wgs84Bounds, zoom)
 	targetTilesBounds, targetTileShift := getTargetTilesBounds(wgs84Bounds, zoom)
 
-	statNew = 0
-	statMerge = 0
-
 	resizedImage := imaging.Resize(imageSource, targetImageSize.width, targetImageSize.height, imaging.Lanczos)
 	sX := 0
 	sY := 0
+
+	nbOfSlices := (targetTilesBounds.right - targetTilesBounds.left + 1) * (targetTilesBounds.bottom - targetTilesBounds.top + 1)
+
+	var wg sync.WaitGroup
+	wg.Add(nbOfSlices)
+
 	for tileX := targetTilesBounds.left; tileX <= targetTilesBounds.right; tileX++ {
 		for tileY := targetTilesBounds.top; tileY <= targetTilesBounds.bottom; tileY++ {
 
@@ -147,45 +151,34 @@ func SliceIt(imageSource image.Image, wgs84Bounds WGS84Bounds, zoom int, outputD
 			sliceExtract.Min = image.Pt(left, top)
 			sliceExtract.Max = image.Pt(left+width, top+height)
 			tile := Tile{x: tileX, y: tileY}
-			isNew, err := makeTheSlice(resizedImage, tile, zoom, sliceExtract, sliceShift, outputDir)
+			go func() {
+				defer wg.Done()
 
-			if err != nil {
-				fmt.Printf("error whene slicing tile %v", tile)
-			}
-
-			if isNew {
-				statNew++
-			} else {
-				statMerge++
-			}
+				makeTheSlice(resizedImage, tile, zoom, sliceExtract, sliceShift, outputDir)
+			}()
 
 			sY++
 		}
 		sX++
 		sY = 0
 	}
-	nbtiles = statMerge + statNew
+	wg.Wait()
+	nbtiles = nbOfSlices
 	elapsed := time.Since(start)
-	return nbtiles, statNew, statMerge, elapsed
+	fmt.Printf("%v tiles in %v \n", nbtiles, elapsed)
+	return nbtiles, elapsed
 }
 
-func makeTheSlice(imageSource image.Image, tile Tile, zoom int, sliceExtract image.Rectangle, sliceShift image.Point, outputDir string) (isNew bool, err error) {
+func makeTheSlice(imageSource image.Image, tile Tile, zoom int, sliceExtract image.Rectangle, sliceShift image.Point, outputDir string) {
 	var path = outputDir + strconv.Itoa(zoom) + "/" + strconv.Itoa(tile.x)
 	var file = strconv.Itoa(tile.y) + ".png"
 	var fulldest = path + "/" + file
-	isNew = false
-	os.MkdirAll(path, os.ModePerm)
-	if err != nil {
-		return isNew, err
-	}
+	_ = os.MkdirAll(path, os.ModePerm)
 	part := imaging.Crop(imageSource, sliceExtract)
-
 	originalContent, err := imaging.Open(fulldest)
 	if err != nil {
-		isNew = true
 		originalContent = virgin
 	}
 	dst := imaging.Paste(originalContent, part, image.Pt(sliceShift.X, sliceShift.Y))
 	err = imaging.Save(dst, fulldest)
-	return isNew, err
 }
